@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Valleys Algorithm Visualization</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      margin: 1em;
+    }
+    canvas {
+      cursor: crosshair;
+    }
+    #output, #illegal {
+      margin-top: 1em;
+      font-family: monospace;
+      white-space: pre-wrap;
+    }
+    .illegal {
+      color: red;
+    }
+  </style>
+</head>
+<body>
+  <h2>Valleys Algorithm Visualization</h2>
+  <label>Width:  <input type="number" id="widthInput" value="10" min="1" style="width: 50px;"></label>
+  <label>Height: <input type="number" id="heightInput" value="6" min="1" style="width: 50px;"></label>
+  <button onclick="initGrid()">Initialize</button>
+  <button onclick="showProfile = !showProfile; drawGrid();">Switch on / switch off profile</button>
+  <br><br>
+  <canvas id="canvas" width="500" height="300"></canvas>
+  <div id="output"></div>
+  <div id="illegal"></div>
+
+  <script>
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+    const output = document.getElementById('output');
+    let grid, sideLength, cellSize, width, height, squareCount, squareMod, b = 1, showProfile = true;
+    let color = [0, "#CCFFCC", "#FFFFCC", "#FFCCCC"]
+    let previewRect = null;
+
+    function initGrid() {
+      width = parseInt(document.getElementById('widthInput').value);
+      height = parseInt(document.getElementById('heightInput').value);
+      cellSize = parseInt((100000 / height) ** 0.4);
+      canvas.width = width * cellSize + 2 * b;
+      canvas.height = height * cellSize + 2 * b;
+      grid = Array.from({ length: height }, () => Array(width).fill(0));
+      squareCount = 0;
+      sideLength = [0];
+      squareMod = [0];
+      drawGrid();
+      updateProfile();
+    }
+
+    function drawGrid() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = '#000';
+      ctx.strokeRect(b, b, canvas.width - 2 * b, canvas.height - 2 * b);
+
+      let tmp = [];
+      for (let i = 0; i < grid.length; i++)
+        tmp[i] = grid[i].slice();
+
+      for (let y = 0; y < height; y++) {
+        for (let x = 0; x < width; x++) {
+          if (tmp[y][x] !== 0) {
+            const d = sideLength[tmp[y][x]];
+            if (squareMod[tmp[y][x]] !== 0) {
+              ctx.fillStyle = color[squareMod[tmp[y][x]]];
+              ctx.fillRect(x * cellSize + b, y * cellSize + b, d * cellSize, d * cellSize);
+            } else {
+              ctx.fillStyle = "#000";
+              let p = d * cellSize / 1.6;
+              ctx.textAlign = 'center';
+              ctx.textBaseline = 'middle';
+              ctx.font = p + "px sans-serif";
+              ctx.fillText(d, x * cellSize + d * cellSize / 2 + b, y * cellSize + d * cellSize / 2 + b);
+            }
+            ctx.strokeStyle = '#000';
+            ctx.strokeRect(x * cellSize + b, y * cellSize + b, d * cellSize, d * cellSize);
+            for (let i = 0; i < d; i++) {
+              for (let j = 0; j < d; j++)
+                tmp[y + i][x + j] = 0;
+            }
+          }
+        }
+      }
+
+      for (let y = 0; y < height; y++) {
+        for (let x = 0; x < width; x++) {
+          //ctx.strokeStyle = '#ccc';
+          //ctx.strokeRect(x * cellSize, y * cellSize, cellSize, cellSize);
+          if (grid[y][x] !== 0) {
+            // ctx.fillStyle = '#555';
+            // ctx.fillRect(x * cellSize, y * cellSize, cellSize, cellSize);
+          }
+        }
+      }
+
+      if (previewRect) {
+        const { x, y, w, h, valid, isSquare } = previewRect;
+        ctx.fillStyle = valid ? (isSquare ? 'rgba(0, 0, 255, 0.3)' : 'rgba(255, 0, 0, 0.3)') : 'rgba(255, 0, 0, 0.3)';
+        ctx.fillRect(x * cellSize, y * cellSize, w * cellSize, h * cellSize);
+
+        ctx.fillStyle = 'black';
+        ctx.font = '12px sans-serif';
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'hanging';
+        ctx.fillText(`${w}×${h}`, x * cellSize + 4, y * cellSize + 4);
+      }
+
+      if (showProfile) {
+        ctx.strokeStyle = 'red';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        const topHeights = Array(width).fill(height * cellSize + b);
+        for (let x = 0; x < width; x++) {
+          for (let y = 0; y < height; y++) {
+            if (grid[y][x] !== 0) {
+              topHeights[x] = y * cellSize + b;
+              break;
+            }
+          }
+        }
+
+        for (let x = 0; x < width; x++) {
+          if (x === 0) ctx.moveTo(x * cellSize + b, topHeights[x]);
+          else {
+            if (topHeights[x - 1] != topHeights[x])
+              ctx.lineTo(x * cellSize + b, topHeights[x - 1]);
+            ctx.lineTo(x * cellSize + b, topHeights[x]);
+          }
+        }
+        ctx.lineTo(width * cellSize + b, topHeights[width - 1]);
+        ctx.stroke();
+      }
+    }
+
+    function updateProfile() {
+      const topHeights = Array(width).fill(height);
+      for (let x = 0; x < width; x++) {
+        for (let y = 0; y < height; y++) {
+          if (grid[y][x] !== 0) {
+            topHeights[x] = height - y;
+            break;
+          }
+          if (y === height - 1) {
+            topHeights[x] = 0;
+          }
+        }
+      }
+      let contour = [];
+      let prev = 0, cur = topHeights[0];
+      let len = 1;
+      for (let i = 1; i <= width; i++) {
+        if (i < width && topHeights[i] === cur) {
+          len++;
+        } else {
+          contour.push([(cur - prev), len]);
+          prev = cur;
+          cur = topHeights[i];
+          len = 1;
+        }
+      }
+      output.innerHTML = `Profile: ${JSON.stringify(contour)}`;
+      illegal.innerHTML = '';
+    }
+
+    let dragging = false;
+    let startX, startY;
+
+    canvas.addEventListener('mousedown', (e) => {
+      if (e.button !== 0)
+        return;
+      const rect = canvas.getBoundingClientRect();
+      const x = Math.floor((e.clientX - rect.left) / cellSize);
+      const y = Math.floor((e.clientY - rect.top) / cellSize);
+      if (grid[y][x] !== 0) {
+        let del = grid[y][x];
+        for (let i = 0; i < height; i++) {
+          for (let j = 0; j < width; j++) {
+            if (grid[i][j] === del) {
+              for (let a = i - 1; a >= 0; a--) {
+                for (let b = j; b < j + sideLength[del]; b++) {
+                  if (grid[a][b] !== 0) {
+                    illegal.innerHTML = '<span class="illegal">Illegal: floating square after deletion</span>';
+                    drawGrid();
+                    return;
+                  }
+                }
+              }
+              for (let a = i; a < i + sideLength[del]; a++) {
+                for (let b = j; b < j + sideLength[del]; b++) {
+                  grid[a][b] = 0;
+                }
+              }
+              drawGrid();
+              updateProfile();
+              return;
+            }
+          }
+        }
+      }
+      startX = x;
+      startY = y;
+      dragging = true;
+      previewRect = null;
+    });
+
+    canvas.addEventListener('wheel', (e) => {
+      event.preventDefault();
+      const rect = canvas.getBoundingClientRect();
+      const x = Math.floor((e.clientX - rect.left) / cellSize);
+      const y = Math.floor((e.clientY - rect.top) / cellSize);
+      if (grid[y][x] !== 0) {
+        if (event.deltaY < 0) {
+          squareMod[grid[y][x]] = (squareMod[grid[y][x]] + 3) % 4;
+        } else {
+          squareMod[grid[y][x]] = (squareMod[grid[y][x]] + 1) % 4;
+        }
+        drawGrid();
+      }
+    });
+
+    canvas.addEventListener('mousemove', (e) => {
+      if (!dragging) return;
+      const rect = canvas.getBoundingClientRect();
+      const x = Math.floor((e.clientX - rect.left) / cellSize);
+      const y = Math.floor((e.clientY - rect.top) / cellSize);
+      if (e.clientX - rect.left < 0 || e.clientX - rect.left >= width * cellSize || e.clientY - rect.top < 0 || e.clientY - rect.top >= height * cellSize) {
+        dragging = false;
+        previewRect = null;
+        drawGrid();
+        return;
+      }
+      const minX = Math.min(x, startX);
+      const minY = Math.min(y, startY);
+      const w = Math.abs(x - startX) + 1;
+      const h = Math.abs(y - startY) + 1;
+      let valid = true;
+      for (let i = 0; i < h; i++) {
+        for (let j = 0; j < w; j++) {
+          if (grid[minY + i][minX + j] !== 0) {
+            valid = false;
+          }
+        }
+      }
+      for (let j = 0; j < w; j++) {
+        for (let i = minY + h; i < height; i++) {
+          if (grid[i][minX + j] === 0) {
+            valid = false;
+          }
+        }
+      }
+      previewRect = { x: minX, y: minY, w, h, valid, isSquare: w === h };
+      drawGrid();
+    });
+
+    canvas.addEventListener('mouseup', (e) => {
+      if (!dragging) return;
+      const rect = canvas.getBoundingClientRect();
+      const x = Math.floor((e.clientX - rect.left) / cellSize);
+      const y = Math.floor((e.clientY - rect.top) / cellSize);
+      dragging = false;
+
+      const minX = Math.min(x, startX);
+      const minY = Math.min(y, startY);
+      const w = Math.abs(x - startX) + 1;
+      const h = Math.abs(y - startY) + 1;
+
+      previewRect = null;
+
+      if (w !== h) {
+        illegal.innerHTML = '<span class="illegal">Illegal: not a square</span>';
+        drawGrid();
+        return;
+      }
+      
+      for (let i = 0; i < h; i++) {
+        for (let j = 0; j < w; j++) {
+          if (grid[minY + i][minX + j] !== 0) {
+            illegal.innerHTML = '<span class="illegal">Illegal: overlaps existing square</span>';
+            drawGrid();
+            return;
+          }
+        }
+      }
+
+      for (let j = 0; j < w; j++) {
+        for (let i = minY + h; i < height; i++) {
+          if (grid[i][minX + j] === 0) {
+            illegal.innerHTML = '<span class="illegal">Illegal: floating square</span>';
+            drawGrid();
+            return;
+          }
+        }
+      }
+
+      squareCount++;
+      for (let i = 0; i < h; i++) {
+        for (let j = 0; j < w; j++) {
+          grid[minY + i][minX + j] = squareCount;
+        }
+      }
+      sideLength.push(h);
+      squareMod.push(0);
+      drawGrid();
+      updateProfile();
+    });
+
+    initGrid();
+  </script>
+</body>
+</html>
