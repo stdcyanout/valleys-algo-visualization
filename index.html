@@ -166,7 +166,7 @@
           len = 1;
         }
       }
-      output.innerHTML = `Profile: ${JSON.stringify(contour)}`;
+      output.innerHTML = `Profile: ${contour.map(p => `(${p[0]},${p[1]})`).join(',')}`;
       illegal.innerHTML = '';
     }
 
